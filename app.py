@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, session
+from flask import Flask, render_template, request, redirect, url_for
 from twilio.twiml.voice_response import VoiceResponse, Dial
 import csv
 import io
@@ -33,19 +33,20 @@ def call():
     phone = request.form.get('phone')
     if not phone:
         return "Phone number missing", 400
-    session['call_phone'] = phone
-    return "Call number saved. Now call your Twilio number.", 200
+    # This endpoint no longer needs to store the number in session or anywhere
+    # Just respond OK. The real call routing is handled by Twilio webhook.
+    return "OK", 200
 
-@app.route('/voice', methods=['POST', 'GET'])
+@app.route('/voice', methods=['GET', 'POST'])
 def voice():
-    phone = session.get('call_phone')
+    phone = request.args.get('phone')  # Get phone number from query param
     resp = VoiceResponse()
     if phone:
         dial = Dial()
         dial.sip(f"sip:{phone}@{SIP_DOMAIN}")
         resp.append(dial)
     else:
-        resp.say("No phone number was saved.")
+        resp.say("No phone number provided.")
     return str(resp), 200, {'Content-Type': 'application/xml'}
 
 if __name__ == '__main__':

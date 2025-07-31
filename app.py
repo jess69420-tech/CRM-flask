@@ -1,34 +1,54 @@
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for, session
+from twilio.twiml.voice_response import VoiceResponse, Dial
 import csv
-import os
-from werkzeug.utils import secure_filename
-
-UPLOAD_FOLDER = 'uploads'
-ALLOWED_EXTENSIONS = {'csv'}
+import io
 
 app = Flask(__name__)
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+app.secret_key = 'your_secret_key'  # Replace with a secure key
+
+SIP_DOMAIN = "microsiptwilio.sip.twilio.com"
 
 contacts = []
-
-def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
     global contacts
     if request.method == 'POST':
-        file = request.files['file']
-        if file and allowed_file(file.filename):
-            filename = secure_filename(file.filename)
-            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            file.save(filepath)
-            with open(filepath, newline='', encoding='utf-8') as csvfile:
-                reader = csv.DictReader(csvfile)
-                contacts = [{'name': row['name'], 'phone': row['phone']} for row in reader]
-            return redirect(url_for('index'))
+        file = request.files.get('file')
+        if not file:
+            return "No file uploaded", 400
+        stream = io.StringIO(file.stream.read().decode("UTF8"), newline=None)
+        reader = csv.DictReader(stream)
+        contacts = []
+        for row in reader:
+            # Expecting name and phone columns
+            name = row.get('name', '').strip()
+            phone = row.get('phone', '').strip().replace('+', '')  # Remove + for SIP URI
+            if name and phone:
+                contacts.append({'name': name, 'phone': phone})
+        return redirect(url_for('index'))
     return render_template('index.html', contacts=contacts)
 
+@app.route('/call', methods=['POST'])
+def call():
+    phone = request.form.get('phone')
+    if not phone:
+        return "Phone number missing", 400
+    session['call_phone'] = phone
+    return "Call number saved. Waiting for Twilio webhook.", 200
+
+@app.route('/voice', methods=['POST', 'GET'])
+def voice():
+    phone = session.get('call_phone')
+    resp = VoiceResponse()
+    if phone:
+        dial = Dial()
+        # Dial via SIP URI on your Twilio SIP Domain
+        dial.sip(f"sip:{phone}@{SIP_DOMAIN}")
+        resp.append(dial)
+    else:
+        resp.say("No phone number found to call.")
+    return str(resp), 200, {'Content-Type': 'application/xml'}
+
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=10000)
+    app.run(debug=True)

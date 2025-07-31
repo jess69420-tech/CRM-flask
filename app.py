@@ -2,9 +2,10 @@ from flask import Flask, render_template, request, redirect, url_for, session
 from twilio.twiml.voice_response import VoiceResponse, Dial
 import csv
 import io
+import os
 
 app = Flask(__name__)
-app.secret_key = 'your_secret_key'  # Replace with a secure key
+app.secret_key = 'your_secret_key'  # Replace this with a real secret key
 
 SIP_DOMAIN = "microsiptwilio.sip.twilio.com"
 
@@ -21,9 +22,8 @@ def index():
         reader = csv.DictReader(stream)
         contacts = []
         for row in reader:
-            # Expecting name and phone columns
             name = row.get('name', '').strip()
-            phone = row.get('phone', '').strip().replace('+', '')  # Remove + for SIP URI
+            phone = row.get('phone', '').strip().replace('+', '')
             if name and phone:
                 contacts.append({'name': name, 'phone': phone})
         return redirect(url_for('index'))
@@ -35,7 +35,7 @@ def call():
     if not phone:
         return "Phone number missing", 400
     session['call_phone'] = phone
-    return "Call number saved. Waiting for Twilio webhook.", 200
+    return "Call number saved. Now call your Twilio number.", 200
 
 @app.route('/voice', methods=['POST', 'GET'])
 def voice():
@@ -43,12 +43,13 @@ def voice():
     resp = VoiceResponse()
     if phone:
         dial = Dial()
-        # Dial via SIP URI on your Twilio SIP Domain
         dial.sip(f"sip:{phone}@{SIP_DOMAIN}")
         resp.append(dial)
     else:
-        resp.say("No phone number found to call.")
+        resp.say("No phone number was saved.")
     return str(resp), 200, {'Content-Type': 'application/xml'}
 
+# Required for Render: bind to 0.0.0.0 and pick up assigned port
 if __name__ == '__main__':
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(debug=True, host="0.0.0.0", port=port)

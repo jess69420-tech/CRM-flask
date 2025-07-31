@@ -5,10 +5,9 @@ import io
 import os
 
 app = Flask(__name__)
-app.secret_key = 'your_secret_key'  # Replace this with a real secret key
+app.secret_key = 'your_secret_key'  # Replace with a strong random key
 
 SIP_DOMAIN = "microsiptwilio.sip.twilio.com"
-
 contacts = []
 
 @app.route('/', methods=['GET', 'POST'])
@@ -49,7 +48,6 @@ def voice():
         resp.say("No phone number was saved.")
     return str(resp), 200, {'Content-Type': 'application/xml'}
 
-# Required for Render: bind to 0.0.0.0 and pick up assigned port
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
-    app.run(debug=True, host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=port)
